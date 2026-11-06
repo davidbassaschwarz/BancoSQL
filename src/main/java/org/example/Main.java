@@ -9,10 +9,13 @@ public class Main {
 
     private static final String URL = "jdbc:postgresql://localhost:5433/banco";
     private static final String USER = "postgres";
-    private static final String PASS = "postgres123";
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
+
+        // 0. Contraseña base de datos del usuario
+        System.out.print("Introduce la contraseña de la BD: ");
+        String PASS = sc.nextLine().trim(
 
         try (Connection c = DriverManager.getConnection(URL, USER, PASS)) {
             System.out.println("¡Conectado con éxito a la base de datos Banco!");
