@@ -169,4 +169,35 @@ public class BancoMetodos {
             return false;
         }
     }
+
+    // Ingresar dinero en una cuenta
+    public static boolean ingresarDinero(Connection con, int numCuenta, double cantidad) {
+        if (cantidad <= 0) return false;
+
+        String sql = "UPDATE Cuentas SET saldo = saldo + ? WHERE numero = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setDouble(1, cantidad);
+            ps.setInt(2, numCuenta);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error al ingresar dinero: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // Retirar dinero de una cuenta (valida saldo suficiente en SQL)
+    public static boolean retirarDinero(Connection con, int numCuenta, double cantidad) {
+        if (cantidad <= 0) return false;
+
+        String sql = "UPDATE Cuentas SET saldo = saldo - ? WHERE numero = ? AND saldo >= ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setDouble(1, cantidad);
+            ps.setInt(2, numCuenta);
+            ps.setDouble(3, cantidad);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error al retirar dinero: " + e.getMessage());
+            return false;
+        }
+    }
 }
