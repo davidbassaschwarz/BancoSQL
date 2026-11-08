@@ -3,7 +3,6 @@ package org.example;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Scanner;
 
 public class Main {
@@ -16,7 +15,7 @@ public class Main {
 
         // 0. Contraseña base de datos del usuario
         System.out.print("Introduce la contraseña de la BD: ");
-        String PASS = sc.nextLine().trim();
+        String PASS = sc.nextLine().trim(
 
         try (Connection c = DriverManager.getConnection(URL, USER, PASS)) {
             System.out.println("¡Conectado con éxito a la base de datos Banco!");
@@ -48,9 +47,9 @@ public class Main {
 
             // 2. REDIRECCIÓN A MENÚS EN EL MAIN
             if ("E".equalsIgnoreCase(rol)) {
-                menuEmpleado(sc, c, nombre, dniValido);
+                menuEmpleado(sc, c, nombre);
             } else if ("C".equalsIgnoreCase(rol)) {
-                menuCliente(sc, c, nombre, dniValido);
+                menuCliente(sc, c, nombre);
             }
 
         } catch (SQLException e) {
@@ -62,18 +61,17 @@ public class Main {
     }
 
     // Menú de consola para Cliente
-    private static void menuCliente(Scanner sc, Connection c, String nombre, String dni) {
+    private static void menuCliente(Scanner sc, Connection c, String nombre) {
         boolean salir = false;
         while (!salir) {
             System.out.println("\n==================================");
             System.out.println("     MENÚ CLIENTE - " + nombre.toUpperCase());
             System.out.println("==================================");
             System.out.println("1. Consultar saldo");
-            System.out.println("2. Ingresar dinero (cajero)");
-            System.out.println("3. Sacar dinero (cajero)");
-            System.out.println("4. Realizar transferencia");
+            System.out.println("2. Ingresar dinero");
+            System.out.println("3. Sacar dinero");
+            System.out.println("4. Transferencia");
             System.out.println("5. Ver últimos movimientos");
-            System.out.println("6. Cambiar PIN");
             System.out.println("0. Cerrar sesión");
             System.out.print("Selecciona una opción: ");
 
@@ -81,22 +79,11 @@ public class Main {
 
             switch (opcion) {
                 case "1":
-                mostrarSaldoUsuario(c, dni);
-                    break;
                 case "2":
-                    System.out.println("-> Opción en desarrollo...");
-                    break;
                 case "3":
-                    System.out.println("-> Opción en desarrollo...");
-                    break;
                 case "4":
-                    procesarTransferencia(sc, c, dni, false);
-                    break;
                 case "5":
                     System.out.println("-> Opción en desarrollo...");
-                    break;
-                case "6":
-                    solicitarCambioPin(sc, c, dni);
                     break;
                 case "0":
                     System.out.println("Cerrando sesión de cliente...");
@@ -109,18 +96,16 @@ public class Main {
     }
 
     // Menú de consola para Empleado
-    private static void menuEmpleado(Scanner sc, Connection c, String nombre, String dni) {
+    private static void menuEmpleado(Scanner sc, Connection c, String nombre) {
         boolean salir = false;
         while (!salir) {
             System.out.println("\n==================================");
             System.out.println("    MENÚ EMPLEADO - " + nombre.toUpperCase());
             System.out.println("==================================");
-            System.out.println("1. Consultar saldo");
-            System.out.println("2. Realizar transferencia");
-            System.out.println("3. Rellenar cajero");
-            System.out.println("4. Añadir / Eliminar cliente");
-            System.out.println("5. Añadir / Eliminar cuenta");
-            System.out.println("6. Cambiar PIN");
+            System.out.println("1. Listar todos los clientes");
+            System.out.println("2. Alta de nuevo cliente");
+            System.out.println("3. Buscar cliente por DNI");
+            System.out.println("4. Ver total de depósitos del banco");
             System.out.println("0. Cerrar sesión");
             System.out.print("Selecciona una opción: ");
 
@@ -128,22 +113,10 @@ public class Main {
 
             switch (opcion) {
                 case "1":
-                    mostrarSaldoUsuario(c, dni);
-                    break;
                 case "2":
-                    procesarTransferencia(sc, c, dni, true);
-                    break;
                 case "3":
-                    System.out.println("-> Opción en desarrollo...");
-                    break;
                 case "4":
                     System.out.println("-> Opción en desarrollo...");
-                    break;
-                case "5":
-                    System.out.println("-> Opción en desarrollo...");
-                    break;
-                case "6":
-                    solicitarCambioPin(sc, c, dni);
                     break;
                 case "0":
                     System.out.println("Cerrando sesión de empleado...");
@@ -152,88 +125,6 @@ public class Main {
                 default:
                     System.out.println("Opción no válida.");
             }
-        }
-    }
-    // Interfaz para cambiar PIN
-    private static void solicitarCambioPin(Scanner sc, Connection c, String dni) {
-        System.out.print("\nIntroduce tu nuevo PIN: ");
-        String nuevoPin = sc.nextLine().trim();
-
-        if (nuevoPin.isEmpty()) {
-            System.out.println("El PIN no puede estar vacío.");
-        } else {
-            boolean exito = BancoMetodos.cambiarPin(c, dni, nuevoPin);
-            if (exito) {
-                System.out.println("PIN actualizado correctamente.");
-            } else {
-                System.out.println("No se pudo actualizar el PIN.");
-            }
-        }
-    }
-
-    private static void mostrarSaldoUsuario(Connection c, String dni) {
-        List<String[]> cuentas = BancoMetodos.obtenerCuentasYSaldo(c, dni);
-
-        if (cuentas.isEmpty()) {
-            System.out.println("\nNo se encontraron cuentas asociadas a este DNI.");
-            return;
-        }
-
-        System.out.println("\n==================================");
-        System.out.println("       TUS CUENTAS Y SALDOS       ");
-        System.out.println("==================================");
-
-        double total = 0.0;
-        for (String[] cuenta : cuentas) {
-            String numCuenta = cuenta[0];
-            double saldo = Double.parseDouble(cuenta[1]);
-            total += saldo;
-
-            System.out.printf("🔹 Cuenta Nº: %s | Saldo: %.2f €%n", numCuenta, saldo);
-        }
-
-        System.out.println("----------------------------------");
-        System.out.printf(" SALDO TOTAL ACUMULADO: %.2f €%n", total);
-        System.out.println("==================================");
-    }
-
-    private static void procesarTransferencia(Scanner sc, Connection c, String dni, boolean esEmpleado) {
-        try {
-            System.out.print("\nIntroduce la cuenta de origen (Nº): ");
-            int origen = Integer.parseInt(sc.nextLine().trim());
-
-            // Si es cliente, verificamos que la cuenta le pertenezca
-            if (!esEmpleado && !BancoMetodos.esTitularDeCuenta(c, dni, origen)) {
-                System.out.println("Esa cuenta no te pertenece o no existe.");
-                return;
-            }
-
-            System.out.print("Introduce la cuenta de destino (Nº): ");
-            int destino = Integer.parseInt(sc.nextLine().trim());
-
-            // Validar que origen y destino no sean la misma cuenta
-            if (origen == destino) {
-                System.out.println("La cuenta de origen y la de destino no pueden ser la misma.");
-                return;
-            }
-
-            System.out.print("Introduce la cantidad a transferir (€): ");
-            int cantidad = Integer.parseInt(sc.nextLine().trim());
-
-            if (cantidad <= 0) {
-                System.out.println("La cantidad debe ser mayor que 0.");
-                return;
-            }
-
-            // Llamada al método atómico de BancoMetodos
-            if (BancoMetodos.realizarTransferencia(c, origen, destino, cantidad)) {
-                System.out.println("Transferencia realizada con éxito.");
-            } else {
-                System.out.println("Error al realizar la transferencia. Revisa el saldo o que la cuenta destino exista.");
-            }
-
-        } catch (NumberFormatException e) {
-            System.out.println("Formato incorrecto. Debes introducir un número entero.");
         }
     }
 }
