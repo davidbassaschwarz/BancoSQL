@@ -72,8 +72,7 @@ public class Main {
             System.out.println("2. Ingresar en cajero");
             System.out.println("3. Retirar efectivo");
             System.out.println("4. Realizar transferencia");
-            System.out.println("5. Ver últimos movimientos");
-            System.out.println("6. Cambiar PIN");
+            System.out.println("5. Cambiar PIN");
             System.out.println("0. Cerrar sesión");
             System.out.print("Selecciona una opción: ");
 
@@ -93,9 +92,6 @@ public class Main {
                     procesarTransferencia(sc, c, dni, false);
                     break;
                 case "5":
-                    System.out.println("-> Opción en desarrollo...");
-                    break;
-                case "6":
                     solicitarCambioPin(sc, c, dni);
                     break;
                 case "0":
@@ -239,7 +235,10 @@ public class Main {
 
     private static void procesarIngreso(Scanner sc, Connection c, String dni) {
         try {
-            System.out.print("\nIntroduce el número de cuenta: ");
+            System.out.print("\nIntroduce el ID del cajero (ej. 1): ");
+            int idCajero = Integer.parseInt(sc.nextLine().trim());
+
+            System.out.print("Introduce la cuenta de destino (Nº): ");
             int numCuenta = Integer.parseInt(sc.nextLine().trim());
 
             if (!BancoMetodos.esTitularDeCuenta(c, dni, numCuenta)) {
@@ -247,28 +246,39 @@ public class Main {
                 return;
             }
 
-            System.out.print("Introduce la cantidad a ingresar (€): ");
-            int cantidad = Integer.parseInt(sc.nextLine().trim());
+            System.out.println("Introduce el número de billetes a ingresar:");
+            System.out.print("Billetes de 5 €: ");
+            int b5 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 10 €: ");
+            int b10 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 20 €: ");
+            int b20 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 50 €: ");
+            int b50 = Integer.parseInt(sc.nextLine().trim());
 
-            if (cantidad <= 0) {
-                System.out.println("La cantidad debe ser mayor que 0.");
+            if (b5 < 0 || b10 < 0 || b20 < 0 || b50 < 0) {
+                System.out.println("La cantidad de billetes no puede ser negativa.");
                 return;
             }
 
-            if (BancoMetodos.ingresarDinero(c, numCuenta, cantidad)) {
-                System.out.println("Ingreso realizado con éxito.");
+            if (BancoMetodos.ingresarEnCajero(c, idCajero, numCuenta, b5, b10, b20, b50)) {
+                int total = (b5 * 5) + (b10 * 10) + (b20 * 20) + (b50 * 50);
+                System.out.printf("Ingreso de %d € realizado con éxito.%n", total);
             } else {
-                System.out.println("Error al procesar el ingreso.");
+                System.out.println("Error al procesar el ingreso en el cajero.");
             }
 
         } catch (NumberFormatException e) {
-            System.out.println("Debes introducir un número válido.");
+            System.out.println("Formato incorrecto. Debes introducir un número entero.");
         }
     }
 
     private static void procesarRetiro(Scanner sc, Connection c, String dni) {
         try {
-            System.out.print("\nIntroduce el número de cuenta: ");
+            System.out.print("\nIntroduce el ID del cajero (ej. 1): ");
+            int idCajero = Integer.parseInt(sc.nextLine().trim());
+
+            System.out.print("Introduce el número de cuenta: ");
             int numCuenta = Integer.parseInt(sc.nextLine().trim());
 
             if (!BancoMetodos.esTitularDeCuenta(c, dni, numCuenta)) {
@@ -279,19 +289,23 @@ public class Main {
             System.out.print("Introduce la cantidad a retirar (€): ");
             int cantidad = Integer.parseInt(sc.nextLine().trim());
 
-            if (cantidad <= 0) {
-                System.out.println("La cantidad debe ser mayor que 0.");
+            if (cantidad <= 0 || cantidad % 5 != 0) {
+                System.out.println("La cantidad debe ser mayor que 0 y múltiplo de 5 €.");
                 return;
             }
 
-            if (BancoMetodos.retirarDinero(c, numCuenta, cantidad)) {
-                System.out.println("Retiro realizado con éxito.");
+            int[] billetes = BancoMetodos.retirarDeCajero(c, idCajero, numCuenta, cantidad);
+
+            if (billetes != null) {
+                System.out.println("Retire su dinero. Operación completada con éxito.");
+                System.out.printf("Billetes entregados -> 50€: %d | 20€: %d | 10€: %d | 5€: %d%n",
+                        billetes[0], billetes[1], billetes[2], billetes[3]);
             } else {
-                System.out.println("Saldo insuficiente o error al procesar el retiro.");
+                System.out.println("No se pudo realizar el retiro (saldo insuficiente en la cuenta o billetes insuficientes en el cajero).");
             }
 
         } catch (NumberFormatException e) {
-            System.out.println("Debes introducir un número válido.");
+            System.out.println("Formato incorrecto. Debes introducir un número entero.");
         }
     }
 }

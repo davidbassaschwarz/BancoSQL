@@ -170,34 +170,136 @@ public class BancoMetodos {
         }
     }
 
-    // Ingresar dinero en una cuenta
-    public static boolean ingresarDinero(Connection con, int numCuenta, int cantidad) {
-        if (cantidad <= 0) return false;
+    // Ingresar dinero especificando número de billetes
+    public static boolean ingresarEnCajero(Connection con, int idCajero, int numCuenta, int b5, int b10, int b20, int b50) {
+        int totalIngreso = (b5 * 5) + (b10 * 10) + (b20 * 20) + (b50 * 50);
+        if (totalIngreso <= 0) return false;
 
-        String sql = "UPDATE Cuentas SET saldo = saldo + ? WHERE numero = ?";
-        try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, cantidad);
-            ps.setInt(2, numCuenta);
-            return ps.executeUpdate() > 0;
+        String sqlCuenta = "UPDATE Cuentas SET saldo = saldo + ? WHERE numero = ?";
+        String sqlCajero = "UPDATE Cajeros SET billetes5 = billetes5 + ?, billetes10 = billetes10 + ?, billetes20 = billetes20 + ?, billetes50 = billetes50 + ? WHERE id = ?";
+
+        try {
+            con.setAutoCommit(false);
+
+            // 1. Aumentar saldo de la cuenta
+            try (PreparedStatement psC = con.prepareStatement(sqlCuenta)) {
+                psC.setInt(1, totalIngreso);
+                psC.setInt(2, numCuenta);
+                if (psC.executeUpdate() == 0) {
+                    con.rollback();
+                    return false;
+                }
+            }
+
+            // 2. Incrementar stock de billetes en el cajero
+            try (PreparedStatement psK = con.prepareStatement(sqlCajero)) {
+                psK.setInt(1, b5);
+                psK.setInt(2, b10);
+                psK.setInt(3, b20);
+                psK.setInt(4, b50);
+                psK.setInt(5, idCajero);
+                if (psK.executeUpdate() == 0) {
+                    con.rollback();
+                    return false;
+                }
+            }
+
+            con.commit();
+            return true;
+
         } catch (SQLException e) {
-            System.err.println("Error al ingresar dinero: " + e.getMessage());
+            try { con.rollback(); } catch (SQLException ex) {}
             return false;
+        } finally {
+            try { con.setAutoCommit(true); } catch (SQLException e) {}
         }
     }
 
-    // Retirar dinero de una cuenta (valida saldo suficiente en SQL)
-    public static boolean retirarDinero(Connection con, int numCuenta, int cantidad) {
-        if (cantidad <= 0) return false;
+    // Retirar dinero entregando el menor número de billetes posible
+    // Devuelve un array int[]{b50, b20, b10, b5} si tiene éxito, o null si falla
+    public static int[] retirarDeCajero(Connection con, int idCajero, int numCuenta, int cantidad) {
+        if (cantidad <= 0 || cantidad % 5 != 0) return null;
 
-        String sql = "UPDATE Cuentas SET saldo = saldo - ? WHERE numero = ? AND saldo >= ?";
-        try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, cantidad);
-            ps.setInt(2, numCuenta);
-            ps.setInt(3, cantidad);
-            return ps.executeUpdate() > 0;
+        String sqlCajeroSelect = "SELECT billetes5, billetes10, billetes20, billetes50 FROM Cajeros WHERE id = ? FOR UPDATE";
+        String sqlCuentaRestar = "UPDATE Cuentas SET saldo = saldo - ? WHERE numero = ? AND saldo >= ?";
+        String sqlCajeroRestar = "UPDATE Cajeros SET billetes5 = billetes5 - ?, billetes10 = billetes10 - ?, billetes20 = billetes20 - ?, billetes50 = billetes50 - ? WHERE id = ?";
+
+        try {
+            con.setAutoCommit(false);
+
+            int b5 = 0, b10 = 0, b20 = 0, b50 = 0;
+            int restante = cantidad;
+
+            // 1. Consultar el stock actual de billetes en el cajero
+            try (PreparedStatement psSel = con.prepareStatement(sqlCajeroSelect)) {
+                psSel.setInt(1, idCajero);
+                try (ResultSet rs = psSel.executeQuery()) {
+                    if (!rs.next()) {
+                        con.rollback();
+                        return null;
+                    }
+                    int stock5 = rs.getInt("billetes5");
+                    int stock10 = rs.getInt("billetes10");
+                    int stock20 = rs.getInt("billetes20");
+                    int stock50 = rs.getInt("billetes50");
+
+                    // Algoritmo voraz (greedy) para minimizar billetes entregados
+                    int usar50 = Math.min(restante / 50, stock50);
+                    restante -= usar50 * 50;
+                    b50 = usar50;
+
+                    int usar20 = Math.min(restante / 20, stock20);
+                    restante -= usar20 * 20;
+                    b20 = usar20;
+
+                    int usar10 = Math.min(restante / 10, stock10);
+                    restante -= usar10 * 10;
+                    b10 = usar10;
+
+                    int usar5 = Math.min(restante / 5, stock5);
+                    restante -= usar5 * 5;
+                    b5 = usar5;
+
+                    // Si no se pudo completar el desglose exacto con los billetes disponibles
+                    if (restante > 0) {
+                        con.rollback();
+                        return null;
+                    }
+                }
+            }
+
+            // 2. Restar saldo de la cuenta
+            try (PreparedStatement psC = con.prepareStatement(sqlCuentaRestar)) {
+                psC.setInt(1, cantidad);
+                psC.setInt(2, numCuenta);
+                psC.setInt(3, cantidad);
+                if (psC.executeUpdate() == 0) {
+                    con.rollback();
+                    return null;
+                }
+            }
+
+            // 3. Restar stock del cajero
+            try (PreparedStatement psK = con.prepareStatement(sqlCajeroRestar)) {
+                psK.setInt(1, b5);
+                psK.setInt(2, b10);
+                psK.setInt(3, b20);
+                psK.setInt(4, b50);
+                psK.setInt(5, idCajero);
+                if (psK.executeUpdate() == 0) {
+                    con.rollback();
+                    return null;
+                }
+            }
+
+            con.commit();
+            return new int[]{b50, b20, b10, b5};
+
         } catch (SQLException e) {
-            System.err.println("Error al retirar dinero: " + e.getMessage());
-            return false;
+            try { con.rollback(); } catch (SQLException ex) {}
+            return null;
+        } finally {
+            try { con.setAutoCommit(true); } catch (SQLException e) {}
         }
     }
 }
