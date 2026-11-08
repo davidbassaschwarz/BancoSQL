@@ -308,4 +308,36 @@ public class Main {
             System.out.println("Formato incorrecto. Debes introducir un número entero.");
         }
     }
+
+    private static void procesarRellenarCajero(Scanner sc, Connection c) {
+        try {
+            System.out.print("\nIntroduce el ID del cajero a rellenar (1 al 4): ");
+            int idCajero = Integer.parseInt(sc.nextLine().trim());
+
+            System.out.println("Introduce la cantidad de billetes a añadir:");
+            System.out.print("Billetes de 5 €: ");
+            int b5 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 10 €: ");
+            int b10 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 20 €: ");
+            int b20 = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("Billetes de 50 €: ");
+            int b50 = Integer.parseInt(sc.nextLine().trim());
+
+            if (b5 < 0 || b10 < 0 || b20 < 0 || b50 < 0) {
+                System.out.println("La cantidad de billetes no puede ser negativa.");
+                return;
+            }
+
+            if (BancoMetodos.rellenarCajero(c, idCajero, b5, b10, b20, b50)) {
+                int totalAnadido = (b5 * 5) + (b10 * 10) + (b20 * 20) + (b50 * 50);
+                System.out.printf("Cajero ID %d rellenado con éxito (+%d € added).%n", idCajero, totalAnadido);
+            } else {
+                System.out.println("Error: El cajero introducido no existe.");
+            }
+
+        } catch (NumberFormatException e) {
+            System.out.println("Debes introducir números enteros.");
+        }
+    }
 }

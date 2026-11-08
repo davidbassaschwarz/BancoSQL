@@ -302,4 +302,24 @@ public class BancoMetodos {
             try { con.setAutoCommit(true); } catch (SQLException e) {}
         }
     }
+    // Rellenar billetes en un cajero específico (Empleado)
+    public static boolean rellenarCajero(Connection con, int idCajero, int b5, int b10, int b20, int b50) {
+        if (b5 < 0 || b10 < 0 || b20 < 0 || b50 < 0) return false;
+
+        String sql = "UPDATE Cajeros SET billetes5 = billetes5 + ?, billetes10 = billetes10 + ?, " +
+                "billetes20 = billetes20 + ?, billetes50 = billetes50 + ? WHERE id = ?";
+
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, b5);
+            ps.setInt(2, b10);
+            ps.setInt(3, b20);
+            ps.setInt(4, b50);
+            ps.setInt(5, idCajero);
+
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error al rellenar el cajero: " + e.getMessage());
+            return false;
+        }
+    }
 }
