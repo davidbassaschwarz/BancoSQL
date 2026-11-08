@@ -81,7 +81,7 @@ public class Main {
 
             switch (opcion) {
                 case "1":
-                mostrarSaldoUsuario(c, dni);
+                    mostrarSaldoUsuario(c, dni);
                     break;
                 case "2":
                     procesarIngreso(sc, c, dni);
@@ -183,17 +183,17 @@ public class Main {
         System.out.println("       TUS CUENTAS Y SALDOS       ");
         System.out.println("==================================");
 
-        double total = 0.0;
+        int total = 0;
         for (String[] cuenta : cuentas) {
             String numCuenta = cuenta[0];
-            double saldo = Double.parseDouble(cuenta[1]);
+            int saldo = Integer.parseInt(cuenta[1]);
             total += saldo;
 
-            System.out.printf("🔹 Cuenta Nº: %s | Saldo: %.2f €%n", numCuenta, saldo);
+            System.out.printf("🔹 Cuenta Nº: %s | Saldo: %d €%n", numCuenta, saldo);
         }
 
         System.out.println("----------------------------------");
-        System.out.printf("  SALDO TOTAL ACUMULADO: %.2f €%n", total);
+        System.out.printf("  SALDO TOTAL ACUMULADO: %d €%n", total);
         System.out.println("==================================");
     }
 
@@ -248,7 +248,7 @@ public class Main {
             }
 
             System.out.print("Introduce la cantidad a ingresar (€): ");
-            double cantidad = Double.parseDouble(sc.nextLine().trim());
+            int cantidad = Integer.parseInt(sc.nextLine().trim());
 
             if (cantidad <= 0) {
                 System.out.println("La cantidad debe ser mayor que 0.");
@@ -277,7 +277,7 @@ public class Main {
             }
 
             System.out.print("Introduce la cantidad a retirar (€): ");
-            double cantidad = Double.parseDouble(sc.nextLine().trim());
+            int cantidad = Integer.parseInt(sc.nextLine().trim());
 
             if (cantidad <= 0) {
                 System.out.println("La cantidad debe ser mayor que 0.");

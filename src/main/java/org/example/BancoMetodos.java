@@ -93,7 +93,7 @@ public class BancoMetodos {
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     String numCuenta = rs.getString("numero");
-                    String saldo = String.valueOf(rs.getDouble("saldo"));
+                    String saldo = String.valueOf(rs.getInt("saldo"));
 
                     // Guardamos cada cuenta como un par [num_cuenta, saldo]
                     listaCuentas.add(new String[]{numCuenta, saldo});
@@ -171,12 +171,12 @@ public class BancoMetodos {
     }
 
     // Ingresar dinero en una cuenta
-    public static boolean ingresarDinero(Connection con, int numCuenta, double cantidad) {
+    public static boolean ingresarDinero(Connection con, int numCuenta, int cantidad) {
         if (cantidad <= 0) return false;
 
         String sql = "UPDATE Cuentas SET saldo = saldo + ? WHERE numero = ?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setDouble(1, cantidad);
+            ps.setInt(1, cantidad);
             ps.setInt(2, numCuenta);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -186,14 +186,14 @@ public class BancoMetodos {
     }
 
     // Retirar dinero de una cuenta (valida saldo suficiente en SQL)
-    public static boolean retirarDinero(Connection con, int numCuenta, double cantidad) {
+    public static boolean retirarDinero(Connection con, int numCuenta, int cantidad) {
         if (cantidad <= 0) return false;
 
         String sql = "UPDATE Cuentas SET saldo = saldo - ? WHERE numero = ? AND saldo >= ?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setDouble(1, cantidad);
+            ps.setInt(1, cantidad);
             ps.setInt(2, numCuenta);
-            ps.setDouble(3, cantidad);
+            ps.setInt(3, cantidad);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("Error al retirar dinero: " + e.getMessage());
