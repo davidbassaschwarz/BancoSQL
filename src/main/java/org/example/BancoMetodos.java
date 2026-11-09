@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,17 +38,16 @@ public class BancoMetodos {
     }
 
     public static String obtenerNombre(Connection c, String dni) {
-        String sql = "SELECT nombre FROM Clientes WHERE dni = ? " +
-                "UNION " +
-                "SELECT nombre FROM Empleados WHERE dni = ?";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, dni);
-            ps.setString(2, dni);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("nombre");
-                }
-            }
+        // Llamamos a la funcion almacenada obtener_nombre_usuario(dni)
+        String sql = "{ ? = call obtener_nombre_usuario(?) }";
+
+        try (CallableStatement cs = c.prepareCall(sql)) {
+            cs.registerOutParameter(1, Types.VARCHAR);
+            cs.setString(2, dni);
+            cs.execute();
+
+            String nombre = cs.getString(1);
+            return nombre != null ? nombre : "Usuario";
         } catch (SQLException e) {
             System.err.println("Error al obtener nombre: " + e.getMessage());
         }
@@ -93,6 +93,21 @@ public class BancoMetodos {
             System.err.println("Error SQL en saldos: " + e.getMessage());
         }
         return listaCuentas;
+    }
+
+    public static List<Integer> obtenerIdsCajeros(Connection con) {
+        List<Integer> ids = new ArrayList<>();
+        String sql = "SELECT id FROM Cajeros ORDER BY id";
+
+        try (PreparedStatement pstmt = con.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                ids.add(rs.getInt("id"));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error SQL al obtener cajeros: " + e.getMessage());
+        }
+        return ids;
     }
 
     /* ==========================================
@@ -197,17 +212,16 @@ public class BancoMetodos {
     public static int[] retirarDeCajero(Connection con, int idCajero, int numCuenta, int cantidad) {
         if (cantidad <= 0 || cantidad % 5 != 0) return null;
 
-        String sqlCajeroSelect = "SELECT billetes5, billetes10, billetes20, billetes50 FROM Cajeros WHERE id = ? FOR UPDATE";
+        String sqlCajeroSelect = "SELECT billetes5, billetes10, billetes20, billetes50 FROM Cajeros WHERE id = ?";
         String sqlCuentaRestar = "UPDATE Cuentas SET saldo = saldo - ? WHERE numero = ? AND saldo >= ?";
         String sqlCajeroRestar = "UPDATE Cajeros SET billetes5 = billetes5 - ?, billetes10 = billetes10 - ?, billetes20 = billetes20 - ?, billetes50 = billetes50 - ? WHERE id = ?";
 
         try {
             con.setAutoCommit(false);
 
-            int b5, b10, b20, b50;
-            int restante = cantidad;
+            int b5 = 0, b10 = 0, b20 = 0, b50 = 0;
 
-            // 1. Bloqueamos filas y miramos el stock de billetes (FOR UPDATE previene condiciones de carrera)
+            // 1. Leemos el stock de billetes del cajero
             try (PreparedStatement psSel = con.prepareStatement(sqlCajeroSelect)) {
                 psSel.setInt(1, idCajero);
                 try (ResultSet rs = psSel.executeQuery()) {
@@ -220,25 +234,40 @@ public class BancoMetodos {
                     int stock20 = rs.getInt("billetes20");
                     int stock50 = rs.getInt("billetes50");
 
-                    // Algoritmo voraz: coger siempre el billete mas grande disponible
-                    int usar50 = Math.min(restante / 50, stock50);
-                    restante -= usar50 * 50;
-                    b50 = usar50;
+                    // Buscamos la combinacion con el menor numero de billetes.
+                    // Probamos cada cantidad posible de billetes de 50 y completamos
+                    // el resto con billetes de 20, despues de 10 y por ultimo de 5.
+                    int menorNumeroBilletes = Integer.MAX_VALUE;
 
-                    int usar20 = Math.min(restante / 20, stock20);
-                    restante -= usar20 * 20;
-                    b20 = usar20;
+                    for (int posible50 = 0; posible50 <= Math.min(stock50, cantidad / 50); posible50++) {
+                        int resto = cantidad - posible50 * 50;
 
-                    int usar10 = Math.min(restante / 10, stock10);
-                    restante -= usar10 * 10;
-                    b10 = usar10;
+                        int posible20 = Math.min(stock20, resto / 20);
+                        resto -= posible20 * 20;
 
-                    int usar5 = Math.min(restante / 5, stock5);
-                    restante -= usar5 * 5;
-                    b5 = usar5;
+                        int posible10 = Math.min(stock10, resto / 10);
+                        resto -= posible10 * 10;
 
-                    // Si queda restante, significa que no habia billetes de 5 o 10 para llegar a la cifra
-                    if (restante > 0) {
+                        int posible5 = resto / 5;
+
+                        // No hay bastantes billetes de 5 para completar la cantidad
+                        if (posible5 > stock5) {
+                            continue;
+                        }
+
+                        int numeroBilletes = posible50 + posible20 + posible10 + posible5;
+
+                        if (numeroBilletes < menorNumeroBilletes) {
+                            menorNumeroBilletes = numeroBilletes;
+                            b50 = posible50;
+                            b20 = posible20;
+                            b10 = posible10;
+                            b5 = posible5;
+                        }
+                    }
+
+                    // Si no se ha encontrado ninguna combinacion, no se puede retirar
+                    if (menorNumeroBilletes == Integer.MAX_VALUE) {
                         con.rollback();
                         return null;
                     }
@@ -319,7 +348,7 @@ public class BancoMetodos {
         String sqlCuenta = "INSERT INTO Cuentas (dni_titular, saldo) VALUES (?, 0)";
 
         try {
-            con.setAutoCommit(false); // El PDF pide que al crear un cliente se genere la cuenta autom.
+            con.setAutoCommit(false); // Al crear un cliente se genera su cuenta automaticamente
 
             try (PreparedStatement ps1 = con.prepareStatement(sqlCliente)) {
                 ps1.setString(1, dni);

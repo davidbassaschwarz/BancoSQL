@@ -42,7 +42,7 @@ public class Main {
                 }
             }
 
-            // Obtenemos el nombre usando la funcion almacenada de la BD
+            // Obtenemos el nombre del usuario
             String nombre = BancoMetodos.obtenerNombre(c, dniValido);
             System.out.println("\n[EXITO] Login correcto. ¡Hola, " + nombre + "!");
 
@@ -54,7 +54,7 @@ public class Main {
             }
 
         } catch (SQLException e) {
-            System.err.println("[ERROR] Fallo critico en la base de datos: " + e.getMessage());
+            System.err.println("[ERROR] No se pudo conectar a la base de datos: " + e.getMessage());
         }
 
         System.out.println("\n¡Gracias por usar la aplicación del Banco!");
@@ -82,26 +82,22 @@ public class Main {
             String opcion = sc.nextLine().trim();
 
             switch (opcion) {
-                case "1":
+                case "1" ->
                     mostrarSaldoUsuario(c, dni);
-                    break;
-                case "2":
+                case "2" ->
                     procesarIngreso(sc, c, dni);
-                    break;
-                case "3":
+                case "3" ->
                     procesarRetiro(sc, c, dni);
-                    break;
-                case "4":
+                case "4" ->
                     procesarTransferencia(sc, c, dni, false);
-                    break;
-                case "5":
+                case "5" ->
                     solicitarCambioPin(sc, c, dni);
-                    break;
-                case "0":
+                case "0" -> {
                     System.out.println("[INFO] Cerrando sesión de cliente...");
                     salir = true;
                     break;
-                default:
+                }
+                default ->
                     System.out.println("[ERROR] Opción no válida.");
             }
         }
@@ -113,8 +109,8 @@ public class Main {
             System.out.println("\n==================================");
             System.out.println("    MENÚ EMPLEADO - " + nombre.toUpperCase());
             System.out.println("==================================");
-            System.out.println("1. Consultar saldo (Uso propio)");
-            System.out.println("2. Realizar transferencia (Uso propio)");
+            System.out.println("1. Consultar saldo");
+            System.out.println("2. Realizar transferencia");
             System.out.println("3. Rellenar cajero");
             System.out.println("4. Gestión de clientes");
             System.out.println("5. Gestión de cuentas");
@@ -161,8 +157,8 @@ public class Main {
         System.out.print("\nIntroduce tu nuevo PIN (4 dígitos): ");
         String nuevoPin = sc.nextLine().trim();
 
-        if (nuevoPin.isEmpty()) {
-            System.out.println("[ERROR] El PIN no puede estar vacío.");
+        if (!esPinValido(nuevoPin)) {
+            System.out.println("[ERROR] El PIN debe tener exactamente 4 dígitos.");
         } else {
             if (BancoMetodos.cambiarPin(c, dni, nuevoPin)) {
                 System.out.println("[EXITO] PIN actualizado correctamente.");
@@ -176,7 +172,7 @@ public class Main {
         List<String[]> cuentas = BancoMetodos.obtenerCuentasYSaldo(c, dni);
 
         if (cuentas.isEmpty()) {
-            System.out.println("\n[INFO] No se encontraron cuentas asociadas a este DNI.");
+            System.out.println("\n[INFO] No tienes cuentas asociadas.");
             return;
         }
 
@@ -199,20 +195,50 @@ public class Main {
 
     private static void procesarTransferencia(Scanner sc, Connection c, String dni, boolean esEmpleado) {
         try {
-            System.out.print("\nIntroduce la cuenta de origen (Nº): ");
-            int origen = Integer.parseInt(sc.nextLine().trim());
+            System.out.print("\nIntroduce la cuenta de destino (Nº): ");
+            int destino = Integer.parseInt(sc.nextLine().trim());
 
-            // Si es cliente, comprobamos por seguridad que la cuenta sea suya
-            if (!esEmpleado && !BancoMetodos.esTitularDeCuenta(c, dni, origen)) {
-                System.out.println("[ERROR] Esa cuenta no te pertenece o no existe.");
+            if (!BancoMetodos.existeCuenta(c, destino)) {
+                System.out.println("[ERROR] La cuenta de destino no existe.");
                 return;
             }
 
-            System.out.print("Introduce la cuenta de destino (Nº): ");
-            int destino = Integer.parseInt(sc.nextLine().trim());
+            int origen;
+
+            if (!esEmpleado) {
+                // Un cliente solo puede transferir desde una de sus cuentas
+                List<String[]> cuentas = BancoMetodos.obtenerCuentasYSaldo(c, dni);
+
+                if (cuentas.isEmpty()) {
+                    System.out.println("[ERROR] No tienes cuentas asociadas.");
+                    return;
+                }
+
+                if (cuentas.size() == 1) {
+                    // Solo tiene una cuenta: se usa automaticamente
+                    origen = Integer.parseInt(cuentas.get(0)[0]);
+                    System.out.println("[INFO] Cuenta de origen: " + origen);
+                } else {
+                    System.out.print("Introduce tu cuenta de origen (Nº): ");
+                    origen = Integer.parseInt(sc.nextLine().trim());
+
+                    if (!BancoMetodos.esTitularDeCuenta(c, dni, origen)) {
+                        System.out.println("[ERROR] Esa cuenta no te pertenece.");
+                        return;
+                    }
+                }
+            } else {
+                System.out.print("Introduce la cuenta de origen (Nº): ");
+                origen = Integer.parseInt(sc.nextLine().trim());
+
+                if (!BancoMetodos.existeCuenta(c, origen)) {
+                    System.out.println("[ERROR] La cuenta de origen no existe.");
+                    return;
+                }
+            }
 
             if (origen == destino) {
-                System.out.println("[ERROR] La cuenta origen y destino deben ser distintas.");
+                System.out.println("[ERROR] La cuenta de origen y destino deben ser distintas.");
                 return;
             }
 
@@ -220,14 +246,14 @@ public class Main {
             int cantidad = Integer.parseInt(sc.nextLine().trim());
 
             if (cantidad <= 0) {
-                System.out.println("[ERROR] La cantidad debe ser positiva.");
+                System.out.println("[ERROR] La cantidad debe ser mayor que 0.");
                 return;
             }
 
             if (BancoMetodos.realizarTransferencia(c, origen, destino, cantidad)) {
                 System.out.println("[EXITO] Transferencia realizada correctamente.");
             } else {
-                System.out.println("[ERROR] Operación fallida. Revisa el saldo o la existencia de la cuenta destino.");
+                System.out.println("[ERROR] Saldo insuficiente en la cuenta de origen.");
             }
 
         } catch (NumberFormatException e) {
@@ -237,17 +263,6 @@ public class Main {
 
     private static void procesarIngreso(Scanner sc, Connection c, String dni) {
         try {
-            System.out.print("\nIntroduce el ID del cajero (ej. 1): ");
-            int idCajero = Integer.parseInt(sc.nextLine().trim());
-
-            System.out.print("Introduce la cuenta de destino (Nº): ");
-            int numCuenta = Integer.parseInt(sc.nextLine().trim());
-
-            if (!BancoMetodos.esTitularDeCuenta(c, dni, numCuenta)) {
-                System.out.println("[ERROR] Esa cuenta no te pertenece o no existe.");
-                return;
-            }
-
             System.out.println("Introduce el número de billetes a ingresar:");
             System.out.print("Billetes de 5 €: ");
             int b5 = Integer.parseInt(sc.nextLine().trim());
@@ -263,11 +278,34 @@ public class Main {
                 return;
             }
 
+            if (b5 + b10 + b20 + b50 == 0) {
+                System.out.println("[ERROR] Debes ingresar al menos un billete.");
+                return;
+            }
+
+            // En un ingreso siempre se pregunta la cuenta, aunque solo tenga una.
+            String[] cuenta = seleccionarCuentaCliente(sc, c, dni, true);
+
+            if (cuenta == null) {
+                return;
+            }
+
+            int numCuenta = Integer.parseInt(cuenta[0]);
+
+            List<Integer> cajeros = BancoMetodos.obtenerIdsCajeros(c);
+
+            if (cajeros.isEmpty()) {
+                System.out.println("[ERROR] No hay cajeros disponibles.");
+                return;
+            }
+
+            int idCajero = cajeros.get(0);
+
             if (BancoMetodos.ingresarEnCajero(c, idCajero, numCuenta, b5, b10, b20, b50)) {
                 int total = (b5 * 5) + (b10 * 10) + (b20 * 20) + (b50 * 50);
                 System.out.printf("[EXITO] Ingreso de %d € contabilizado en cuenta y cajero.%n", total);
             } else {
-                System.out.println("[ERROR] Fallo al procesar el ingreso (cajero o cuenta no validos).");
+                System.out.println("[ERROR] No se pudo realizar el ingreso.");
             }
 
         } catch (NumberFormatException e) {
@@ -277,18 +315,7 @@ public class Main {
 
     private static void procesarRetiro(Scanner sc, Connection c, String dni) {
         try {
-            System.out.print("\nIntroduce el ID del cajero en el que te encuentras (ej. 1): ");
-            int idCajero = Integer.parseInt(sc.nextLine().trim());
-
-            System.out.print("Introduce el número de tu cuenta: ");
-            int numCuenta = Integer.parseInt(sc.nextLine().trim());
-
-            if (!BancoMetodos.esTitularDeCuenta(c, dni, numCuenta)) {
-                System.out.println("[ERROR] Cuenta no válida o no autorizada.");
-                return;
-            }
-
-            System.out.print("Introduce la cantidad a retirar (€): ");
+            System.out.print("\nIntroduce la cantidad a retirar (€): ");
             int cantidad = Integer.parseInt(sc.nextLine().trim());
 
             if (cantidad <= 0 || cantidad % 5 != 0) {
@@ -296,15 +323,35 @@ public class Main {
                 return;
             }
 
-            int[] billetes = BancoMetodos.retirarDeCajero(c, idCajero, numCuenta, cantidad);
+            String[] cuenta = seleccionarCuentaCliente(sc, c, dni, false);
 
-            if (billetes != null) {
-                System.out.println("[EXITO] Operación completada.");
-                System.out.printf(" >> Billetes dispensados: [50€: %d] | [20€: %d] | [10€: %d] | [5€: %d]%n",
-                        billetes[0], billetes[1], billetes[2], billetes[3]);
-            } else {
-                System.out.println("[ERROR] Retiro denegado. Posibles causas: Saldo insuficiente o el cajero no tiene el desglose de billetes necesario.");
+            if (cuenta == null) {
+                return;
             }
+
+            int numCuenta = Integer.parseInt(cuenta[0]);
+            int saldo = Integer.parseInt(cuenta[1]);
+
+            if (saldo < cantidad) {
+                System.out.println("[ERROR] Saldo insuficiente.");
+                return;
+            }
+
+            // Probamos los cajeros disponibles hasta encontrar uno con billetes suficientes
+            List<Integer> cajeros = BancoMetodos.obtenerIdsCajeros(c);
+
+            for (int idCajero : cajeros) {
+                int[] billetes = BancoMetodos.retirarDeCajero(c, idCajero, numCuenta, cantidad);
+
+                if (billetes != null) {
+                    System.out.println("[EXITO] Operación completada.");
+                    System.out.printf(" >> Billetes dispensados: [50€: %d] | [20€: %d] | [10€: %d] | [5€: %d]%n",
+                            billetes[0], billetes[1], billetes[2], billetes[3]);
+                    return;
+                }
+            }
+
+            System.out.println("[ERROR] Ningún cajero tiene billetes suficientes para esa cantidad.");
 
         } catch (NumberFormatException e) {
             System.out.println("[ERROR] Formato numérico incorrecto.");
@@ -331,11 +378,16 @@ public class Main {
                 return;
             }
 
+            if (b5 + b10 + b20 + b50 == 0) {
+                System.out.println("[ERROR] Debes añadir al menos un billete.");
+                return;
+            }
+
             if (BancoMetodos.rellenarCajero(c, idCajero, b5, b10, b20, b50)) {
                 int totalAnadido = (b5 * 5) + (b10 * 10) + (b20 * 20) + (b50 * 50);
                 System.out.printf("[EXITO] Cajero ID %d actualizado (+%d € totales).%n", idCajero, totalAnadido);
             } else {
-                System.out.println("[ERROR] El cajero introducido no existe o error de conexión.");
+                System.out.println("[ERROR] El cajero no existe.");
             }
 
         } catch (NumberFormatException e) {
@@ -354,6 +406,16 @@ public class Main {
             System.out.print("DNI del nuevo cliente: ");
             String dni = sc.nextLine().trim();
 
+            if (dni.isEmpty()) {
+                System.out.println("[ERROR] El DNI no puede estar vacío.");
+                return;
+            }
+
+            if (!esDniValido(dni)) {
+                System.out.println("[ERROR] El DNI debe tener 8 números y una letra.");
+                return;
+            }
+
             if (BancoMetodos.existeCliente(c, dni)) {
                 System.out.println("[ERROR] Ya existe un cliente registrado con ese DNI.");
                 return;
@@ -362,13 +424,23 @@ public class Main {
             System.out.print("Nombre completo: ");
             String nombre = sc.nextLine().trim();
 
+            if (nombre.isEmpty()) {
+                System.out.println("[ERROR] El nombre no puede estar vacío.");
+                return;
+            }
+
             System.out.print("PIN (4 dígitos): ");
             String pin = sc.nextLine().trim();
+
+            if (!esPinValido(pin)) {
+                System.out.println("[ERROR] El PIN debe tener exactamente 4 dígitos.");
+                return;
+            }
 
             if (BancoMetodos.crearClienteConCuenta(c, dni, nombre, pin)) {
                 System.out.println("[EXITO] Cliente creado y cuenta vinculada automáticamente.");
             } else {
-                System.out.println("[ERROR] Fallo al insertar el registro del cliente.");
+                System.out.println("[ERROR] No se pudo crear el cliente.");
             }
 
         } else if ("2".equals(subOp)) {
@@ -376,14 +448,14 @@ public class Main {
             String dni = sc.nextLine().trim();
 
             if (!BancoMetodos.existeCliente(c, dni)) {
-                System.out.println("[ERROR] No hay registros con ese DNI en Clientes.");
+                System.out.println("[ERROR] No existe ningún cliente con ese DNI.");
                 return;
             }
 
             if (BancoMetodos.eliminarCliente(c, dni)) {
                 System.out.println("[EXITO] Cliente eliminado. (Sus cuentas desaparecen por cascada).");
             } else {
-                System.out.println("[ERROR] Imposible eliminar el cliente.");
+                System.out.println("[ERROR] No se pudo eliminar el cliente.");
             }
         } else {
             System.out.println("[ERROR] Opción no válida.");
@@ -403,7 +475,7 @@ public class Main {
                 String dni = sc.nextLine().trim();
 
                 if (!BancoMetodos.existeCliente(c, dni)) {
-                    System.out.println("[ERROR] El cliente titular no existe en la base de datos.");
+                    System.out.println("[ERROR] El cliente titular no existe.");
                     return;
                 }
 
@@ -418,7 +490,7 @@ public class Main {
                 if (BancoMetodos.crearCuenta(c, dni, saldo)) {
                     System.out.println("[EXITO] Nueva cuenta operativa.");
                 } else {
-                    System.out.println("[ERROR] Fallo interno al crear cuenta.");
+                    System.out.println("[ERROR] No se pudo crear la cuenta.");
                 }
 
             } else if ("2".equals(subOp)) {
@@ -433,7 +505,7 @@ public class Main {
                 if (BancoMetodos.eliminarCuenta(c, numCuenta)) {
                     System.out.println("[EXITO] Cuenta eliminada del sistema.");
                 } else {
-                    System.out.println("[ERROR] No se pudo procesar la baja de la cuenta.");
+                    System.out.println("[ERROR] No se pudo eliminar la cuenta.");
                 }
             } else {
                 System.out.println("[ERROR] Opción no válida.");
@@ -441,5 +513,76 @@ public class Main {
         } catch (NumberFormatException e) {
             System.out.println("[ERROR] Formato numérico incorrecto.");
         }
+    }
+
+    /* =========================================================
+     *               MÉTODOS AUXILIARES
+     * ========================================================= */
+
+    /**
+     * Devuelve la cuenta seleccionada del cliente como {numero, saldo}.
+     * Si preguntarSiempre es false y el cliente tiene una sola cuenta,
+     * se usa automaticamente; si no, se le pide cual quiere.
+     * Devuelve null si no se puede seleccionar.
+     */
+    private static String[] seleccionarCuentaCliente(Scanner sc, Connection c, String dni, boolean preguntarSiempre) {
+        List<String[]> cuentas = BancoMetodos.obtenerCuentasYSaldo(c, dni);
+
+        if (cuentas.isEmpty()) {
+            System.out.println("[ERROR] No tienes cuentas asociadas.");
+            return null;
+        }
+
+        if (!preguntarSiempre && cuentas.size() == 1) {
+            String[] cuenta = cuentas.get(0);
+            System.out.println("[INFO] Cuenta seleccionada: " + cuenta[0]);
+            return cuenta;
+        }
+
+        System.out.print("Introduce el número de tu cuenta: ");
+        int numCuenta = Integer.parseInt(sc.nextLine().trim());
+
+        for (String[] cuenta : cuentas) {
+            if (Integer.parseInt(cuenta[0]) == numCuenta) {
+                return cuenta;
+            }
+        }
+
+        System.out.println("[ERROR] Esa cuenta no te pertenece.");
+        return null;
+    }
+
+    /**
+     * Comprueba que el PIN tenga exactamente 4 dígitos.
+     */
+    private static boolean esPinValido(String pin) {
+        if (pin == null || pin.length() != 4) {
+            return false;
+        }
+
+        for (int i = 0; i < pin.length(); i++) {
+            if (!Character.isDigit(pin.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Comprueba el formato básico del DNI: 8 números y una letra.
+     */
+    private static boolean esDniValido(String dni) {
+        if (dni == null || dni.length() != 9) {
+            return false;
+        }
+
+        for (int i = 0; i < 8; i++) {
+            if (!Character.isDigit(dni.charAt(i))) {
+                return false;
+            }
+        }
+
+        return Character.isLetter(dni.charAt(8));
     }
 }

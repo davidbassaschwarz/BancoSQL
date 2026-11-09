@@ -3,6 +3,8 @@ DROP TABLE IF EXISTS Empleados;
 DROP TABLE IF EXISTS Cuentas;
 DROP TABLE IF EXISTS Cajeros;
 
+DROP FUNCTION IF EXISTS obtener_nombre_usuario(VARCHAR);
+
 CREATE TABLE Clientes (
                           dni varchar(9) PRIMARY KEY,
                           nombre varchar(32) NOT NULL,
@@ -67,4 +69,22 @@ INSERT INTO Cajeros (direccion, poblacion, billetes5, billetes10, billetes20, bi
 INSERT INTO Cajeros (direccion, poblacion, billetes5, billetes10, billetes20, billetes50) VALUES ('Calle Manacor, 34', 'Palma', 50, 50, 50, 50);
 INSERT INTO Cajeros (direccion, poblacion, billetes5, billetes10, billetes20, billetes50) VALUES ('Av. Larga, 543', 'Madrid', 8, 1, 4, 3);
 INSERT INTO Cajeros (direccion, poblacion, billetes5, billetes10, billetes20, billetes50) VALUES ('Camí Son Rapinya, 5', 'Palma', 200, 125, 33, 64);
+
+-- Funcion almacenada: devuelve el nombre del usuario (cliente o empleado) a partir de su DNI
+CREATE OR REPLACE FUNCTION obtener_nombre_usuario(p_dni VARCHAR)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_nombre VARCHAR(32);
+BEGIN
+    SELECT nombre INTO v_nombre FROM Clientes WHERE dni = p_dni;
+
+    IF v_nombre IS NULL THEN
+        SELECT nombre INTO v_nombre FROM Empleados WHERE dni = p_dni;
+    END IF;
+
+    RETURN COALESCE(v_nombre, 'Usuario');
+END;
+$$;
 
